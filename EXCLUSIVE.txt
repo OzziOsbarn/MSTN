@@ -1,0 +1,1226 @@
+
+
+//Подпрограмма ожидания (защиты).
+//Реализовать
+
+
+
+
+*----RST_CLK
+1
+https://ldm-systems.ru/product/19025
+https://www.youtube.com/watch?v=NWSHjRaNbA0&list=PL9lkEHy8EJU_z4ghanU99Et5YSEGeM0vz&index=1&ab_channel=NR.electronics
+https://habr.com/ru/post/255199/
+https://www.youtube.com/watch?v=z8AqQY_WKKo&ab_channel=%D0%A4%D0%A0%D0%A2%D0%9A%D0%9C%D0%A4%D0%A2%D0%98&t=0s
+https://www.youtube.com/watch?v=Ep9Wrd0Kokw&ab_channel=%D0%A4%D0%A0%D0%A2%D0%9A%D0%9C%D0%A4%D0%A2%D0%98&t=0s
+https://www.youtube.com/watch?v=PP94Q0OYLkY&ab_channel=%D0%A4%D0%A0%D0%A2%D0%9A%D0%9C%D0%A4%D0%A2%D0%98&t=0s
+
+
+Прошивка
+Выбираем hex-файл из папки 
+obj созданного проекта. Настраиваем параметры порта, скорости, ставим галочки для
+операций стирания и программирования. Нажимаем «Start». После чего в окне «Monitor
+Status» должна появиться соответствующую надпись об успешном выполнении загрузки
+программы во внутреннюю flash-память микроконтроллера.
+
+Последовательность действий для загрузки прошивки в микроконтроллер:
+ Вводим в режим BOOT MODE путем зажатия SA3 и одновременного сброса питания
+коротким нажатием SA1
+ Запускаем программу 1986WSD.exe, указываем COM-порт, путь к hex-файлу,
+параметры загрузки (галочки Erase и Program)
+ Нажимаем «Start»
+ Нажимаем «RUN»
+
+
+//FIRST PROJECT
+#include "MDR32F9Qx_board.h"
+#include "MDR32F9Qx_config.h"
+#include "MDR32Fx.h"
+#include "MDR32F9Qx_port.h"
+#include "MDR32F9Qx_rst_clk.h"
+#include <stdlib.h>
+#include <stdio.h>
+
+void main()
+{
+    uint32_t waitTime = 0;
+    const _mstn_version * mstnSdkVersion = NULL;
+    const _mstn_version * mstnBootVersion = NULL;
+    const _mstn_serial_number * mstnSerialNumber = NULL;
+    LED_SetGreenState(TURN_ON);
+    mstnSdkVersion = MSTN_GetLibVersion();
+    mstnBootVersion = MSTN_GetBootloaderVersion();
+    mstnSerialNumber = MSTN_GetSerialNumber();
+    while(USB_GetStatus() != PERMITTED);
+    printf("Hello World!\n");
+    printf("Serial Number: %u\n", mstnSerialNumber->serialNumber);
+    printf("Bootloader version:   %u.%u.%u\n",
+                                                mstnBootVersion->major,
+                                                mstnBootVersion->minor,
+                                                mstnBootVersion->build);
+    printf("MSTN Library version: %u.%u.%u\n",
+                                                mstnSdkVersion->major,
+                                                mstnSdkVersion->minor,
+                                                mstnSdkVersion->build);
+    while(1)
+    {
+        printf("Input waitTime (ms):\n");
+        scanf("%lu", &waitTime);
+        printf("You inputed %" PRIu32 "ms.\n", waitTime);
+        LED_SetGreenState(TURN_OFF);
+        LED_SetRedState(TURN_ON);
+        Delay(waitTime);
+        LED_SetRedState(TURN_OFF);
+        LED_SetGreenState(TURN_ON);
+    }
+    //return EXIT_SUCCESS;
+}
+2
+Код из примера
+3
+
+
+
+
+
+//МУСОР
+vvvvvvvv
+--------------
+
+
+
+---------------
+
+
+
+-----------
+
+
+
+
+
+//Функция настройки тактовой частоты МК
+void clk_CoreConfig(void) {
+	//Реинициализация настроек тактирования
+	// Включить тактирование батарейного блока
+	//и внутренние генераторы, все остальное сбросить
+	RST_CLK_DeInit();
+	//Включение тактирования от внешнего источника HSE (High Speed External)
+	RST_CLK_HSEconfig(RST_CLK_HSE_ON);
+	//Проверка статуса HSE
+	//if (RST_CLK_HSEstatus() == SUCCESS) /* Если HSE осциллятор включился 
+	//if (RST_CLK_HSEstatus() == ERROR) while (1);
+	while (RST_CLK_HSEstatus () != SUCCESS);
+	//Настройка делителя/умножителя частоты CPU_PLL(фазовая подстройка частоты)
+	/* Указываем PLL от куда брать частоту (RCC_PLLSource_HSE_Div1) и на сколько ее умножать (RCC_PLLMul_9) */
+	/* PLL может брать частоту с кварца как есть (RCC_PLLSource_HSE_Div1) или поделенную на 2 (RCC_PLLSource_HSE_Div2). Смотри схему */
+	RST_CLK_CPU_PLLconfig(RST_CLK_CPU_PLLsrcHSEdiv1, RST_CLK_CPU_PLLmul10);
+	// RST_CLK_CPU_PLLconfig(div, mul);
+	//Включение CPU_PLL
+	//, но еще не подключать к кристаллу
+	RST_CLK_CPU_PLLcmd(ENABLE);
+	//Проверка статуса CPU_PLL
+	//if (RST_CLK_CPU_PLLstatus() == SUCCESS) //Если включение CPU_PLL прошло успешно
+	//if (RST_CLK_CPU_PLLstatus() == ERROR) while (1);
+	while (RST_CLK_CPU_PLLstatus() != SUCCESS);
+	
+	/* Установка CPU_C3_prescaler = 2 */
+	// Делитель CPU_C3_SEL ( CPU_C3_SEL = CPU_C2_SEL/2 )
+	RST_CLK_CPUclkPrescaler(RST_CLK_CPUclkDIV2);
+
+	//Коммутация выхода CPU_PLL на вход CPU_C3
+	//На С2 идет с PLL, а не напрямую с С1 (CPU_C2_SEL = PLL)
+	RST_CLK_CPU_PLLuse(ENABLE);
+	//Выбор источника тактирования ядра процессора
+	//CPU берет с выхода С3 (а может с выхода HSI,LSI,LSE) (HCLK_SEL = CPU_C3_SEL )
+	RST_CLK_CPUclkSelection(RST_CLK_CPUclkCPU_C3);
+	//Тактирование перифирии
+	//Подача тактовой частоты на PORTC, PORTD
+	RST_CLK_PCLKcmd(RST_CLK_PCLK_PORTC, ENABLE);
+	RST_CLK_PCLKcmd(RST_CLK_PCLK_PORTD, ENABLE);
+	
+	Дополнительно
+	// Разрешить тактировние часов реального времени от HSE  (8МГц / 16 = 500кГц)
+	RST_CLK_HSEclkPrescaler (RST_CLK_HSEclkDIV16);
+	RST_CLK_RTC_HSEclkEnable (ENABLE);
+}
+
+
+Функция "RST_CLK_CPU_PLLconfig" осуществляет настройку делителя/умножителя.
+1) RST_CLK_CPU_PLLsrcHSEdiv16 - переменная определяет делитель (ыы)
+2) RST_CLK_CPU_PLLmul16 - перемення определяет умножитель (ыы)
+
+Включение источника тактирования
+RST_CLK_HSIcmd(ENABLE);//HSI turn on
+RST_CLK_HSEconfig(RST_CLK_HSE_ON);//HSE turn on
+
+Проверка статуса
+if (RST_CLK_HSIstatus() == SUCCESS)//HSI Status
+if (RST_CLK_HSEstatus() == SUCCESS)//HSE Status
+
+
+RST_CLK_CPUclkSelection(RST_CLK_CPUclkHSI);
+RST_CLK_CPUclkSelection(RST_CLK_CPUclkCPU_C3);
+
+
+------------------------------------
+//Для начала работы с нужным периферийным блоком необходимо включить его тактовую частоту в регистре PER_CLOCK
+MDR_RST_CLK->PER_CLOCK = 0xFFFFFFFF;
+MDR_RST_CLK->HS_CONTROL = 0x01;    //запуск внешнего кварца HSE (режим внешнего кварца)
+//while ((MDR_RST_CLK->CLOCK_STATUS & (1<<2)) == 0x00);   //ожидание выхода HSE в рабочий режим
+while ((MDR_RST_CLK->CLOCK_STATUS & 4) != 4) { ; }  // дождаться запуска HSE
+
+MDR_RST_CLK->PLL_CONTROL = (1 << 8);  // в PLL умножение на 1+1
+MDR_RST_CLK->PLL_CONTROL |= (1 << 2); // Включаем PLL
+//MDR_RST_CLK->PLL_CONTROL |= (1 << 3); // Перезапуск PLL
+//while ((MDR_RST_CLK->CLOCK_STATUS & (1<<1)) == 0x00); // Wait Ready from CPU PLL
+while ((MDR_RST_CLK->CLOCK_STATUS & 2) != 2) { ; }   // дождаться запуска \
+                                                и выхода в рабочий режим PLL
+
+MDR_RST_CLK->CPU_CLOCK   = (2 << 0)|(1 << 2)|(1 << 8);  // CPU_C1-HSE, CPU_C2-PLL_CPUo, HCLK-CPU_C3
+MDR_RST_CLK->PLL_CONTROL = (4 << 8) | (1 << 2); // Включаем PLL
+SystemCoreClockUpdate(); // обновить значение переменной SystemCoreClock
+
+-----------------------------------------
+
+---------------
+
+не нужно
+Настройка тактирования, работа с битами
+#define PCLK_EN(RST_CLK)       (1<<4)//Включение бита разрешения периферии (RST_CLK)
+//Включаем тактирование контроллера тактовой частоты RST_CLK в блоке PCLK_EN[4]
+RST_CLK->PER_CLOK |= PCLK_EN(RST_CLK);
+
+
+#define HSE_ON     (1<<0) //Включение бита разрешения
+//Разрешаем использование HSE генератора (включение HSE)
+RST_CLK->HS_CONTROL = HS_CONTROL(HSE_ON);
+
+
+#define PLL_CONTROL_PLL_CPU_ON  (1<<2) //Бит включения PLL
+//Включение PLL и умножаем на 2=(1<<8)
+RST_CLK->PLL_CONTROL  = PLL_CONTROL_PLL_CPU_ON|(1<<8);
+
+Реализация с перезапуском (если заранее включен PLL и в нем уже было какое-то значение):
+#define PLL_CONTROL_PLL_CPU_PLD (1<<3) //Бит перезапуска PLL.
+//0xf - битовая маска для хранения последних 4-х бит (шестнадцатеричный литерал для 0000 0000 0000 1111)
+//PLL_CONTROL&(~(0xF<<8)) - гарантирует что сотрутся 4 бита отвечающих за коэффициент умножения с 8 по 11
+RST_CLK->PLL_CONTROL  = RST_CLK->PLL_CONTROL&(~(0xF<<8)); //Удаляем старое значение
+uint8_t PLL_MUL_VAL=3 //Коэффициент умножения PLL
+//Включение PLL и умножение на PLL_MUL_VAL
+RST_CLK->PLL_CONTROL |= PLL_CONTROL_PLL_CPU_ON|((PLL_MUL_VAL-1)<<8)|PLL_CONTROL_PLL_CPU_PLD;
+
+
+Флаги регистра статус о выходе в рабочий режим:
+1)	дождаться запуска HSE - HSE_RDY (1<<2)
+while ((MDR_RST_CLK>CLOCK_STATUS & 4) != 4) { ; }
+2)	дождаться запуска и выхода в рабочий режим PLL - PLL_CPU_RDY (1<<1)
+while ((MDR_RST_CLK>CLOCK_STATUS & 2) != 2) { ; }
+
+
+Настройка пути тактирования для процессорного ядря:
+1) Выбор источника тактирования для CPU_C1_SEL: HSE 8МГц - CPU_C1(HSE) (1<<1);
+2) Выбор источника тактирования для CPU_C2_SEL: PLL - CPU_C2(PLLCPU0) (1<<2);
+3) Выбор коэффициента деления делителя для CPU_C3_SEL: Оставляем по умолчанию (без коэффициента деления);
+4) Выбор источника тактирования для HCLK_SEL: CPU_C3 - HCLK_SEL(CPU_C3) (1<<8).
+
+#define HCLK_SEL(CPU_C3)       (1<<8)
+#define CPU_C1_SEL(HSE)        (1<<1)
+//Настраиваем "путь" сигнала и включаем тактирование от HSE генератора
+RST_CLK->CPU_CLOCK  = CPU_C1_SEL(HSE)|HCLK_SEL(CPU_C3);
+
+через PLL
+//Настраиваем "путь частоты" и включаем тактирование от HSE генератора
+#define CPU_C1_SEL(HSE)        (1<<1)
+#define CPU_C2_SEL(CPU_C2_SEL) (1<<2)
+#define HCLK_SEL(CPU_C3)       (1<<8)
+RST_CLK->CPU_CLOCK  = CPU_C1_SEL(HSE)|HCLK_SEL(CPU_C3)|CPU_C2_SEL(CPU_C2_SEL)
+
+#include "1986be9x_config.h"
+#include "1986BE9x.h"
+#include "1986BE9x_port.h"
+#include "1986BE9x_rst_clk.h"
+#include "1986BE9x_it.h"
+
+//Инициализация порта светодиода
+void Led_init (void)
+{
+RST_CLK->PER_CLOCK |=(1<<23);                   //Включаем тактирование порта C.
+PORTC->OE |= 1;                                 //Порт - выход.
+PORTC->ANALOG |= 1;                             //Порт - цифоровой. 
+PORTC->PWR |= 1;                                //Порт - медленный режим.
+}
+
+//Инициализация таймера
+#define CLKSOURCE (1<<2) //Указывает источник синхросигнала: 0 - LSI, 1 - HCLK.
+#define TCKINT (1<<1) //Разрешает запрос на прерывание от системного таймера.
+#define ENABLE (1<<0) //Разрешает работу таймера.
+void Init_SysTick (void){//Прерывание раз в милли секунду
+SysTick->LOAD = (8000000/1000)-1;              
+SysTick->CTRL |= CLKSOURCE|TCKINT|ENABLE;
+}
+
+//Обработчик прерыаний таймер
+volatile uint32_t Delay_dec = 0;
+void SysTick_Handler (void)
+{
+if (Delay_dec) Delay_dec--;
+}
+//Функция задержки по таймеру
+void Delay_ms (uint32_t Delay_ms_Data)
+{
+Delay_dec = Delay_ms_Data;
+while (Delay_dec) {};
+}
+
+//Инициализация системы тактироания
+#define HCLK_SEL(CPU_C3)       (1<<8)
+#define CPU_C1_SEL(HSE)        (1<<1)
+#define CPU_C2_SEL(CPU_C2_SEL) (1<<2)
+#define PCLK_EN(RST_CLK)       (1<<4)
+#define HS_CONTROL(HSE_ON)     (1<<0)
+
+#define RST_CLK_ON_Clock()       RST_CLK->PER_CLOCK |= PCLK_EN(RST_CLK)                 //Включаем тактирование контроллера тактовой частоты (по умолчанию включено).
+#define HSE_Clock_ON()           RST_CLK->HS_CONTROL = HS_CONTROL(HSE_ON)               //Разрешаем использование HSE генератора. 
+#define HSE_Clock_OffPLL()       RST_CLK->CPU_CLOCK  = CPU_C1_SEL(HSE)|HCLK_SEL(CPU_C3);//Настраиваем "путь" сигнала и включаем тактирование от HSE генератора.
+
+#define PLL_CONTROL_PLL_CPU_ON  (1<<2)                                                  //PLL включена. 
+#define PLL_CONTROL_PLL_CPU_PLD (1<<3)                                                  //Бит перезапуска PLL.
+void HSE_PLL (uint8_t PLL_mul_val)                                                              //Сюда передаем частоту в разах "в 2 раза" например. 
+{
+RST_CLK->PLL_CONTROL  = RST_CLK->PLL_CONTROL&(~(0xF<<8));                                      //Удаляем старое значение.
+RST_CLK->PLL_CONTROL |= PLL_CONTROL_PLL_CPU_ON|((PLL_mul_val-1)<<8)|PLL_CONTROL_PLL_CPU_PLD;  //Включаем PLL и включаем умножение в X раз, а так же перезапускаем PLL.
+RST_CLK->CPU_CLOCK   |= HCLK_SEL(CPU_C3)|CPU_C2_SEL(CPU_C2_SEL)|CPU_C1_SEL(HSE);               //Настриваем "маршрут" частоты через PLL и включаем тактирование от HSE.
+}
+
+//Подпрограмма ожидания (защиты).
+void Block (void){
+PORTC->RXTX |= 1;
+Delay_ms (1000);
+PORTC->RXTX = 0;
+Delay_ms (1000);
+}
+
+int main (void)
+{
+	Init_SysTick();                                 //Инициализируем системный таймер. 
+	Led_init();                                     //Инициализируем ножку 0 порта C для светодиода. 
+	Block();                                        //Подпрограмма ожидания (защиты).
+	HSE_Clock_ON();                                 //Разрешаем использование HSE генератора. 
+	HSE_PLL(2);                                     //Включаем тактирование с умножением 2
+
+	uint8_t PLL_Data = 1;                           //Здесь храним коэффициент умножения. 
+	while (1){
+		PORTC->RXTX |= 1;
+		Delay_ms (1000);
+		PORTC->RXTX = 0;
+		Delay_ms (1000);
+		if (PLL_Data<10) PLL_Data++; else PLL_Data=1; //Изменение коэффициента умножения с 1 до 10
+	    	HSE_PLL(PLL_Data); 
+	}
+}
+
+---------------
+
+
+*----GPIO
+//Функция инициализации светодиода VD7
+void led_Init(void){
+//Создание структуры для инициализации порта
+PORT_InitTypeDef PORT_InitStructure;
+//Настройки порта: вывод, функция ввода/вывода, цифровой режим,
+//максимальная скорость, Pin2
+PORT_InitStructure.PORT_OE = PORT_OE_OUT;
+PORT_InitStructure.PORT_FUNC = PORT_FUNC_PORT;
+PORT_InitStructure.PORT_MODE = PORT_MODE_DIGITAL;
+PORT_InitStructure.PORT_SPEED = PORT_SPEED_MAXFAST;//PORT_SPEED_SLOW
+PORT_InitStructure.PORT_Pin = (PORT_Pin_2);
+PORT_Init(MDR_PORTC, &PORT_InitStructure);
+}
+//Функция записи состояния (1:0) светодиода VD7
+void led_Write(bool on_off){
+PORT_WriteBit(MDR_PORTC, PORT_Pin_2, on_off ? Bit_SET : Bit_RESET);
+}
+
+
+В спецификации можно увидеть, что у МК есть аналоговая и цифровая функции. 
+Цифровая функция порта в свою очередь разделена на несколько возможных видов: основной, альтернативный и переопределённый.
+Каждый из них отвечает за взаимодействие внутренних периферийных компонентов с выводами МК.
+Кнопка
+Схема LDM-BB-K1986BE92QI.pdf) следует, что для взаимодействия с кнопкой потребуется вывод PD5 порта «D». 
+В структуре инициализации необходимо произвести конфигурирование порта на вход в режиме «ввода-вывода» на 
+минимальной скорости в цифровом режиме. Для взаимодействия с регистром и определения состояния кнопки потребуется
+функция API драйвера PORT_ReadInputDataBit, где в качестве входных параметров передается номер вывода и порт (PORTD, PD5).
+Светодиод
+В структуре инициализации необходимо произвести конфигурирование порта на вывод с функцией «ввода-вывода» на максимальной скорости в цифровом режиме. Для взаимодействия с регистром и записи состояния светодиода VD7 потребуется функция API драйвера PORT_WriteBit, где в качестве входных параметров передается номер вывода, порт, а также состояние вывода 1 или 0 (PORTC, PC2, state).
+
+void PORT_INIT(void) {
+	//led_Init
+	//Создание структуры для инициализации порта
+	PORT_InitTypeDef PORT_InitStructure;
+
+	//Настройки порта: вывод, функция ввода/вывода, цифровой режим, максимальная скорость, Pin2
+	PORT_InitStructure.PORT_OE = PORT_OE_OUT;
+	PORT_InitStructure.PORT_FUNC = PORT_FUNC_PORT;
+	PORT_InitStructure.PORT_MODE = PORT_MODE_DIGITAL;
+	PORT_InitStructure.PORT_SPEED = PORT_SPEED_MAXFAST;
+	PORT_InitStructure.PORT_Pin = (PORT_Pin_2);
+
+	PORT_Init(MDR_PORTC, &PORT_InitStructure);
+
+	//button_Init
+	//Создание структуры для инициализации порта
+	PORT_InitTypeDef PORT_InitStructure;
+	//Настройки порта: ввод, функция ввода/вывода, цифровой режим, минимальная скорость, Pin5
+	PORT_InitStructure.PORT_OE = PORT_OE_IN;
+	PORT_InitStructure.PORT_FUNC = PORT_FUNC_PORT;
+	PORT_InitStructure.PORT_MODE = PORT_MODE_DIGITAL;
+	PORT_InitStructure.PORT_SPEED = PORT_SPEED_SLOW;
+	PORT_InitStructure.PORT_Pin = (PORT_Pin_5);
+
+	PORT_Init(MDR_PORTD, &PORT_InitStructure);
+}
+
+----------------
+#include <MDR32F9x.h>
+
+#define BUTTON_SELECT (1<<2)   
+#define LAMP_VD5      (1<<0)          
+
+          
+int main (void)
+{ 
+	MDR_RST_CLK->PER_CLOCK = 0xFFFFFFFF;  // Включаем CLK на порты
+																				 
+	MDR_PORTC->OE     = 0x00000000;                    
+	MDR_PORTC->FUNC   = 0x00000000;                
+	MDR_PORTC->ANALOG = 0x0000FFFF;         
+	MDR_PORTC->PULL   = BUTTON_SELECT << 16;    
+	MDR_PORTC->PD     = BUTTON_SELECT << 16;     
+	MDR_PORTC->PWR    = 0x55555555;                  
+	MDR_PORTC->GFEN   = 0;                                   
+
+	MDR_PORTB->OE     = LAMP_VD5;                  
+	MDR_PORTB->FUNC   = 0x00000000;               
+	MDR_PORTB->ANALOG = 0x0000FFFF;         
+	MDR_PORTB->PULL   = LAMP_VD5 << 16;   
+	MDR_PORTB->PD     = ~LAMP_VD5;               
+	MDR_PORTB->PWR    = 0x55555555;               
+	MDR_PORTB->GFEN   = 0;                              
+	MDR_PORTB->RXTX   = 0xFFFF;                    
+
+	while(1){ 
+		if (MDR_PORTC->RXTX & BUTTON_SELECT){ 
+			MDR_PORTB->RXTX &= ~LAMP_VD5; 
+		}
+		else{ 
+			MDR_PORTB->RXTX |= LAMP_VD5; 
+		}
+	}
+}
+
+------------------------
+МОРЗЕ
+Генерируем пример который нужно повторить
+#include"iostream"
+#include"stdio.h"
+#include"stdlib.h"
+
+//random
+#include <time.h>
+
+int Symbols[] = { '-','*' };
+int main()
+{
+  
+  srand(42);
+  
+  int r1, r2, r3;
+  printf("Povtory:");
+  for (int i = 0; i < 10; i++)
+  {
+    r1 = rand() % 3+2;
+    for(int j=0;j<r1;j++)
+    {
+      r2 = rand() % 3+2;
+      for(int k=0;k<r2;k++)
+      {
+        r3 = rand() % 2;
+        printf("%c",Symbols[r3]);
+      }
+      printf(" ");
+    }
+    printf("\n");
+    getchar();
+  }
+
+  getchar();   getchar();
+  return 0;
+}
+------------------------------------
+
+
+----------------------------------
+
+
+
+*----TIMER
+
+#include <MDR32F9Qx_port.h>
+#include <MDR32F9Qx_rst_clk.h>
+#include <MDR32F9Qx_timer.h>
+PORT_InitTypeDef PORTDInit;
+//Инициализация портов ввода вывода
+void PortsInit(){ PORT_StructInit(&PORTDInit); //Load defaults
+RST_CLK_PCLKcmd(RST_CLK_PCLK_PORTD, ENABLE);
+PORTDInit.PORT_Pin = PORT_Pin_10 | PORT_Pin_11 | PORT_Pin_12 | PORT_Pin_13 | PORT_Pin_14;
+PORTDInit.PORT_OE = PORT_OE_OUT;
+PORTDInit.PORT_MODE = PORT_MODE_DIGITAL;
+PORTDInit.PORT_SPEED = PORT_SPEED_SLOW;
+PORT_Init(MDR_PORTD, &PORTDInit);
+}
+uint8_t cur_i;
+//Процедура мигания светодиодами
+void NextLED(){
+switch(cur_i++ % 5) {
+case 0:
+PORT_ResetBits(MDR_PORTD, PORT_Pin_14);
+PORT_SetBits(MDR_PORTD, PORT_Pin_10);
+break;
+case 1:
+PORT_ResetBits(MDR_PORTD, PORT_Pin_10);
+PORT_SetBits(MDR_PORTD, PORT_Pin_11);
+break;
+case 2:
+PORT_ResetBits(MDR_PORTD, PORT_Pin_11);
+PORT_SetBits(MDR_PORTD, PORT_Pin_12);
+break;
+case 3:
+PORT_ResetBits(MDR_PORTD, PORT_Pin_12);
+PORT_SetBits(MDR_PORTD, PORT_Pin_13);
+break;
+case 4:
+PORT_ResetBits(MDR_PORTD, PORT_Pin_13);
+PORT_SetBits(MDR_PORTD, PORT_Pin_14);
+break;
+}
+}
+TIMER_CntInitTypeDef TIM1Init;
+// Процедура инициализации таймера
+// при частоте процессора 8 МГц обеспечивает вызов процедуры обработки прерывания 1 раз в
+// секунду
+void TimerInit(){
+RST_CLK_PCLKcmd(RST_CLK_PCLK_TIMER1, ENABLE);
+TIMER_BRGInit(MDR_TIMER1, TIMER_HCLKdiv1);
+TIMER_CntStructInit(&TIM1Init); //Load defaults
+TIM1Init.TIMER_Prescaler = 8000;
+TIM1Init.TIMER_Period = 1000;
+TIMER_CntInit(MDR_TIMER1, &TIM1Init);
+// Инициализация прерываний таймера
+NVIC_EnableIRQ(Timer1_IRQn); NVIC_SetPriority(Timer1_IRQn, 0);
+TIMER_ITConfig(MDR_TIMER1, TIMER_STATUS_CNT_ZERO, ENABLE);
+TIMER_Cmd(MDR_TIMER1, ENABLE);
+}
+//Обработчик прерывания таймера
+void Timer1_IRQHandler() {
+if(TIMER_GetITStatus(MDR_TIMER1, TIMER_STATUS_CNT_ZERO)){
+NextLED();
+TIMER_ClearITPendingBit(MDR_TIMER1, TIMER_STATUS_CNT_ZERO);
+}
+}
+int main() {
+PortsInit();
+TimerInit();
+cur_i = 0;
+/* Включение HSE осциллятора (внешнего кварцевого резонатора)*/ RST_CLK_HSEconfig(RST_CLK_HSE_ON);
+if (RST_CLK_HSEstatus() == SUCCESS) /* Если HSE осциллятор включился и прошел текст*/ {
+// Выбор HSE осциллятора в качестве источника тактовых импульсов для CPU_PLL
+// и установка умножителя тактовой частоты CPU_PLL равного 7
+// Частота внешнего кварца равна 8 МГц Максимальная частота процессора 80 МГц ,
+// RST_CLK_CPU_PLLconfig ( Источник тактирования PLL, Коэффициент умножения 9); RST_CLK_CPU_PLLconfig ( RST_CLK_CPU_PLLsrcHSEdiv1, 9 );
+/* Включение схемы PLL*/
+RST_CLK_CPU_PLLcmd(ENABLE);
+if (RST_CLK_CPU_PLLstatus() == SUCCESS) //Если включение CPU_PLL прошло успешно
+{
+/* Установка CPU_C3_prescaler = 2 */
+RST_CLK_CPUclkPrescaler(RST_CLK_CPUclkDIV2); /* Установка CPU_C2_SEL от CPU_PLL выхода вместо CPU_C1 такта*/ RST_CLK_CPU_PLLuse(ENABLE); /* Выбор CPU_C3 такта на мультиплексоре тактовых импульсов микропроцессора (CPU clock MUX) */ RST_CLK_CPUclkSelection(RST_CLK_CPUclkCPU_C3); }
+else /* блок CPU_PLL не включился*/
+{while(1);}
+}
+else /* кварцевый резонатор HSE не включился */
+{while(1);}
+while(1){
+// Основной пустой цикл
+}
+}
+
+
+
+--------------------------
+// Время горения светодиода, мс.
+const uint32_t LED_ON_TM=1000;
+
+// Время паузы, мс.
+const uint32_t LED_OFF_TM=2000;
+
+// Счётчик миллисекунд.
+volatile uint32_t msTicks=0;
+
+// Обработчик прерывания от системного таймера
+// подсчитывает прошедшее время в мс.
+extern "C" void SysTick_Handler()
+{
+    msTicks++;
+}
+
+int main()
+{
+    // Включаем тактовый сигнал порта GPIOC.
+    RCC->APB2ENR|=RCC_APB2ENR_IOPCEN;
+
+    // Конфигурируем PC9 как двухтактный выход,
+    // основная функция, макс. частота 2МГц.
+    // CNF: 00; MODE: 10
+    GPIOC->CRH=GPIO_CRH_MODE9_1;
+
+    // При желании можно настроить режим работы всех
+    // портов в соответствии с привилами хорошего тона.
+
+    // Включить LED.
+    GPIOC->BSRR=GPIO_BSRR_BS9;
+
+    // Конфигурируем и запускаем системный таймер
+    // для генерации исключения каждую 1 мс.
+    if(SysTick_Config(SystemCoreClock/1000))
+    {
+        // Здесь могла бы быть обработка ошибок
+        // в случае неудачного вызова SysTick_Config.
+    }
+
+    // Начальная точка отсчёта времени (начало периода
+    // цикла переключения светодиода).
+    uint32_t t0=msTicks;
+
+    // В бесконечном цикле управляем светодиодом.
+    while(true)
+    {
+        // Если период переключения заврешился, то зажигаем светодиод
+    	// (так как новый период начинается с зажигания) и
+    	// смещаем точку отсчёта для формирования нового периода.
+        if(msTicks-t0>=LED_ON_TM+LED_OFF_TM)
+        {
+            GPIOC->BSRR=GPIO_BSRR_BS9;
+            t0=msTicks;
+        }
+        else if(msTicks-t0>LED_ON_TM&&      // Если время горения истекло
+                (GPIOC->ODR&GPIO_ODR_ODR9)) // и светодиод ещё горит, то
+            GPIOC->BRR=GPIO_BRR_BR9;        // гасим светодиод.
+    }
+}
+
+------------------------------
+// Счётчик миллисекунд.
+volatile uint32_t msTicks=0;
+
+// Обработчик прерывания от системного таймера
+// подсчитывает прошедшее время в мс.
+extern "C" void SysTick_Handler()
+{
+    msTicks++;
+}
+
+// Задержка на ms миллисекунд.
+// Перед первым вызовом нужно настроить системный
+// таймер на генерацию исключения каждую миллисекунду.
+void delay(uint32_t ms)
+{
+    uint32_t t=msTicks+ms;
+    while(t>msTicks);  // Ждём намеченного времени.
+}
+
+int main()
+{
+    if(SysTick_Config(SystemCoreClock/1000))
+    {
+        // Обработка ошибок.
+    }
+    // Остальной код...
+}
+
+
+
+------------------------
+Задержка
+#include "stm32f10x.h"
+
+extern "C" void SysTick_Handler()
+{
+}
+
+// Калибровочная константа для функции задержки.
+uint32_t UCALIBR=0;
+
+// Задержка на n тактов процессора.
+void ndelay(uint32_t n)
+{
+    // Начальное значение счётчика SysTick.
+    uint32_t n0=SysTick->VAL;
+
+    // Предыдущее значение счётчика.
+    uint32_t np=n0;
+
+    // Корректировка.
+    if(n>UCALIBR)
+        n-=UCALIBR;
+    else
+        return;
+
+    // Текущее значение счётчика SysTick.
+    int32_t nc;
+
+    // Выполняем цикл до тех пор, пока не пройдёт
+    // заданное количество тактов процессора.
+    do{
+        nc=SysTick->VAL;
+
+        // Проверка на переполнение, корректировка
+        // на модуль пересчёта в случае переполнения.
+        if(nc>=np)
+            n0+=SysTick->LOAD+1;
+        np=nc;
+    }while(n0-nc<n);
+}
+
+// Калибровка функции задержки.
+// Необязательна, можно не вызывать и её код исключить.
+void ncalibr()
+{
+    // Сохраняем значение регистра SysTick->LOAD.
+    uint32_t load=SysTick->LOAD;
+    // Устанавливаем достаточно большой модуль
+    // пересчёта для счётчика системного таймера.
+    SysTick->LOAD=0x00FFFFFF;
+    // Сбрасываем счётчик системного таймера записью
+    // в его регистр любого числа.
+    SysTick->VAL=0;
+
+    // Читаем регистр запрета исключений.
+    bool primask=__get_PRIMASK();
+    // Запрещаем исключения.
+    __disable_irq();
+
+    // Собственно калибровка функции ndelay.
+    const uint32_t SOME_TICKS=500;
+    uint32_t n0=SysTick->VAL;
+    ndelay(SOME_TICKS);
+    UCALIBR=n0-SysTick->VAL-SOME_TICKS;
+
+    /*
+       // Здесь можем добавить код для тестирования
+       // точности функции, например, под отладчиком.
+       n0=SysTick->VAL;
+       ndelay(100);
+       uint32_t tmp1=n0-SysTick->VAL;
+       
+       n0=SysTick->VAL;
+       ndelay(1000);
+       uint32_t tmp2=n0-SysTick->VAL;
+       
+       // После этого фрагмента можно поставить точку
+       // остановки и посмотреть значения tmp1, tmp2, ...
+       // Они должны быть близки к значениям аргументов
+       // функции ndelay в соответствующих вызовах.
+    */
+
+    // Восстанавливаем конфигурацию системного
+    // таймера и сбрасываем его счётчик.
+    SysTick->LOAD=load;
+    SysTick->VAL=0;
+    // Восстанавливаем предыдущее состояние
+    // регистра запрета исключений.
+    __set_PRIMASK(primask);
+}
+
+// Способ пересчёта интервала в единицах времени в
+// количество тактов процессора.
+// Вариант для пересчёта во время компиляции (если 
+// us задано константой).
+#define CURRENT_CORE_CLOCK 24000000
+#define USTON(us) (uint32_t)((us)/1.0e6*CURRENT_CORE_CLOCK)
+
+int main()
+{
+    // Для использования функции ndelay требуется
+    // включить системный таймер, частота генерации
+    // исключений от таймера непринципиальна.
+    if(SysTick_Config(SystemCoreClock/123))
+    {
+        // Обработка ошибок.
+    }
+
+    // Для увеличения точности задаваемых интервалов,
+    // можно выполнить калибровку (но необязательно).
+    ncalibr();
+
+    // Для увеличения точности, во время формирования
+    // задержки обработку исключений следует запрещать.
+    __disable_irq();
+    // Задержка на 1 секунду.
+    ndelay(USTON(1000000));
+    __enable_irq();
+
+    // ...............
+}
+
+-------------------------------
+/**
+  ******************************************************************************
+  * @file    main.c 
+  * @author  MCD Application Team
+  * @version V1.2.2
+  * @date    14-August-2015
+  * @brief   Main program body
+  ******************************************************************************
+  * @attention
+  *
+  * <h2><center>&copy; COPYRIGHT 2015 STMicroelectronics</center></h2>
+  *
+  * Licensed under MCD-ST Liberty SW License Agreement V2, (the "License");
+  * You may not use this file except in compliance with the License.
+  * You may obtain a copy of the License at:
+  *
+  *        http://www.st.com/software_license_agreement_liberty_v2
+  *
+  * Unless required by applicable law or agreed to in writing, software 
+  * distributed under the License is distributed on an "AS IS" BASIS, 
+  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  * See the License for the specific language governing permissions and
+  * limitations under the License.
+  *
+  ******************************************************************************
+  */
+
+/* Includes ------------------------------------------------------------------*/
+#include "main.h"
+#include "stdint.h"
+
+void delay(const uint32_t milliseconds);
+volatile uint32_t ticks_delay = 0;
+
+/*
+SCB_DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;// разрешаем использовать DWT
+DWT_CYCCNT = 0;// обнуляем значение
+DWT_CONTROL|= DWT_CTRL_CYCCNTENA_Msk; // включаем счётчик
+Какой-то код
+count_tic = DWT_CYCCNT;//смотрим сколько натикало
+*/
+
+uint32_t count_tic = 0;         // Для DWT
+
+/* inline func */
+__STATIC_INLINE void DWT_Init(void)
+{
+	CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk; // разрешаем использовать счётчик
+	DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;   // запускаем счётчик
+}
+
+void delay_micros(uint32_t us)
+{
+    uint32_t us_count_tic =  us * (SystemCoreClock / 1000000); // получаем кол-во тактов за 1 мкс и умножаем на наше значение
+    DWT->CYCCNT = 0U; // обнуляем счётчик
+    while(DWT->CYCCNT < us_count_tic);
+}
+
+int main(void)
+{
+  SysTick_Config(SystemCoreClock/1000);
+  __enable_irq;
+  
+  // Настройка модуля DWT
+    SCB_DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;// разрешаем использовать DWT
+    DWT_CYCCNT = 0;// обнуляем значение
+   
+   //***********RCC****************
+    RCC->AHBENR|=(RCC_AHBENR_GPIOBEN|RCC_AHBENR_GPIOCEN);       // Тактирование портов B и C
+    RCC->APB2ENR|=RCC_APB2ENR_SYSCFGEN;                         // Тактирование контроллера EXTI
+  //***********GPIOB**************
+    GPIOB->MODER&=~GPIO_MODER_MODER13;                          // PB13 - вход 
+    GPIOB->PUPDR&=~GPIO_PUPDR_PUPDR13;                          // Z-состояние
+    
+  //**********GPIOC***************
+  // Режим работы PC13 - выход
+  GPIOC->MODER |= GPIO_MODER_MODER13_0;
+  // Тип выхода - открытый сток
+  GPIOC->OTYPER |= GPIO_OTYPER_OT_13;
+  // Без подтяжки к питанию
+  GPIOC->PUPDR &= ~GPIO_PUPDR_PUPDR13;
+  // Минмальная частота переключения
+  GPIOC->OSPEEDR &= ~GPIO_OSPEEDER_OSPEEDR13;
+
+  //***********SYSCFG*************
+    SYSCFG->EXTICR[3]|=SYSCFG_EXTICR4_EXTI13_PB;// PB13
+      
+  //***********EXTI***************
+    EXTI->IMR|=(EXTI_IMR_MR13);            //РАЗРЕШАЕМ ПРЕРЫВАНИЯ ДЛЯ PC13
+    //EXTI->RTSR|=(EXTI_RTSR_TR13);        //ПО СПАДУ
+    EXTI->FTSR|=(EXTI_FTSR_TR13);          //ПО ФРОНТУ
+
+  //***********NVIC***************
+    NVIC_SetPriority(EXTI15_10_IRQn,14);   //ПРИОРИТЕТ 14
+    NVIC_EnableIRQ(EXTI15_10_IRQn);        //РАЗРЕШАЕМ ПРЕРЫВАНИЯ
+    
+    __enable_irq;
+  
+    //DWT_CONTROL|= DWT_CTRL_CYCCNTENA_Msk; // включаем счётчик
+    while (1)
+    {
+      GPIOC->ODR^=GPIO_ODR_13;
+      delay(500);
+      //count_tic = DWT_CYCCNT;//смотрим сколько натикало
+    }
+}
+
+void delay(const uint32_t milliseconds) {
+    uint32_t start = ticks_delay;
+    while((ticks_delay - start) < milliseconds);
+    
+}
+------------------------------
+void delay(const uint32_t milliseconds);
+volatile uint32_t ticks_delay = 0;
+void initTIM7(void);
+
+int main(void)
+{
+  //SystemInit();
+  //SysTick_Config(SystemCoreClock/1000);
+  initTIM7();
+  //***********RCC****************
+   RCC->AHBENR|=(RCC_AHBENR_GPIOAEN|RCC_AHBENR_GPIOBEN|RCC_AHBENR_GPIOCEN);                          // Тактирование порта B и C
+   RCC->APB2ENR|=RCC_APB2ENR_SYSCFGEN;                         // Тактирование контроллера EXTI
+  //***********GPIOB**************
+   GPIOB->MODER&=~(GPIO_MODER_MODER12);                        // PB13 - вход 
+   GPIOB->PUPDR&=~(GPIO_PUPDR_PUPDR12);                        // Z-состояние
+   //***********GPIOA**************
+   GPIOA->MODER&=~(GPIO_MODER_MODER8);                        // PA8 - вход 
+   GPIOA->PUPDR&=~(GPIO_PUPDR_PUPDR8);                        // Z-состояние
+    
+  //**********GPIOC***************
+  // Режим работы PC13 - выход
+  GPIOC->MODER |= GPIO_MODER_MODER13_0;
+  // Тип выхода - открытый сток
+  GPIOC->OTYPER |= GPIO_OTYPER_OT_13;
+  // Без подтяжки к питанию
+  GPIOC->PUPDR &= ~GPIO_PUPDR_PUPDR13;
+  // Минмальная частота переключения
+  GPIOC->OSPEEDR &= ~GPIO_OSPEEDER_OSPEEDR13;
+        
+   GPIOC->ODR |=GPIO_ODR_13;
+  //**********GPIOB***************
+  // Режим работы PB3 and PB4 - выход
+  GPIOB->MODER &=~(GPIO_MODER_MODER5|GPIO_MODER_MODER4|GPIO_MODER_MODER3);
+  GPIOB->MODER |=(GPIO_MODER_MODER10_0|GPIO_MODER_MODER5_0|GPIO_MODER_MODER4_0|GPIO_MODER_MODER3_0);
+  // Тип выхода - открытый сток
+  // GPIOB->OTYPER |= (GPIO_OTYPER_OT_4|GPIO_OTYPER_OT_3);
+  // Без подтяжки к питанию
+  GPIOB->PUPDR &= ~(GPIO_PUPDR_PUPDR10|GPIO_PUPDR_PUPDR5|GPIO_PUPDR_PUPDR4|GPIO_PUPDR_PUPDR3);
+  // Минмальная частота переключения
+  GPIOB->OSPEEDR &= ~(GPIO_OSPEEDER_OSPEEDR10|GPIO_OSPEEDER_OSPEEDR5|GPIO_OSPEEDER_OSPEEDR4|GPIO_OSPEEDER_OSPEEDR3);
+
+  //***********SYSCFG*************
+  SYSCFG->EXTICR[3]|= SYSCFG_EXTICR4_EXTI12_PB;// PB13
+  SYSCFG->EXTICR[2]|= SYSCFG_EXTICR3_EXTI8_PA;
+      
+  //***********EXTI***************
+    EXTI->IMR|=(EXTI_IMR_MR12|EXTI_IMR_MR8);             //РАЗРЕШАЕМ ПРЕРЫВАНИЯ ДЛЯ PB13 и PB12
+    //EXTI->RTSR|=(EXTI_RTSR_TR13|EXTI_RTSR_TR12);        //ПО СПАДУ
+    EXTI->FTSR|=(EXTI_FTSR_TR12|EXTI_FTSR_TR8);          //ПО ФРОНТУ
+
+  //***********NVIC***************
+    NVIC_SetPriorityGrouping (4);               // Устанавливаю 8 групп (0-7) приоритета и 2 (0-1) подгруппы прерываний
+    
+    NVIC_SetPriority(EXTI15_10_IRQn,9);      // Группа 5, приоритет 1 
+    NVIC_SetPriority(EXTI9_5_IRQn,8);        // Группа 5, приоритет 0
+    NVIC_SetPriority(TIM7_IRQn,10);		// Группа 4 приоритет 0
+    
+    //NVIC_SetPriority(SysTick_IRQn,10);     //   Прерывание от системного таймера
+    
+    NVIC_EnableIRQ(EXTI15_10_IRQn);        //РАЗРЕШАЕМ ПРЕРЫВАНИЯ
+    NVIC_EnableIRQ(EXTI9_5_IRQn);
+    NVIC_EnableIRQ(TIM7_IRQn);			//Рарзрешить прерывание от TIM7
+         
+    
+    //__disable_irq;
+    while (1)
+    {
+      //GPIOC->ODR^=GPIO_ODR_13;
+      GPIOB->BSRR = GPIO_BSRR_BS_5;
+      progDelay(50000);
+      GPIOB->BSRR = GPIO_BSRR_BR_5;
+      progDelay(50000);
+    }
+}
+
+void delay(const uint32_t milliseconds) {
+    uint32_t start = ticks_delay;
+    while((ticks_delay - start) < milliseconds);
+}
+
+
+void initTIM7(void)
+{
+	RCC->APB1ENR |= RCC_APB1ENR_TIM7EN;	//Включить тактирование TIM6
+	
+	//Частота APB1 для таймеров = APB1Clk * 2 = 36МГц * 2 = 72МГц
+	TIM7->PSC = 36000-1;				//Предделитель частоты (72МГц/36000 = 2кГц)
+	TIM7->ARR = 4000-1;			        //Модуль счёта таймера (2кГц/4000 = 0.5 с)
+	TIM7->DIER |= TIM_DIER_UIE;			//Разрешить прерывание по переполнению таймера
+	TIM7->CR1 |= TIM_CR1_CEN;			//Включить таймер
+}
+--------------------------------------------------------------------
+Допустим, частота тактирования нашего микроконтроллера 24 МГц, тогда:
+//SysTick_CLKSourceConfig(SysTick_CLKSource_HCLK_Div8);		/* частота системного таймера = 56/8 = 7 МГц */
+SysTick->LOAD = 24000000UL/1000 - 1; // Загрузка значения в 1 ms для перезагрузки таймера
+SysTick->VAL  = 24000000UL/1000 - 1; // Устанавливаем текущее значение
+// Настраиваем таймер
+SysTick->CTRL= SysTick_CTRL_CLKSOURCE_Msk |
+               SysTick_CTRL_TICKINT_Msk   |//Включаем прерывание
+               SysTick_CTRL_ENABLE_Msk;//Включаем таймер
+
+
+
+Теперь нужно заглянуть в таблицу прерываний (startup_<device>.s):
+
+g_pfnVectors:
+    .word   _estack
+    .word   Reset_Handler
+    .word   NMI_Handler
+    .word   HardFault_Handler
+    .word   MemManage_Handler
+# ...
+    .word   PendSV_Handler
+    .word   SysTick_Handler
+# ...
+Мы знаем, как должна называться функция. Добавим её в main.c:
+volatile uint32_t ticks_delay = 0;
+void SysTick_Handler(void) {
+  // Тут делаем что-то полезное
+ticks_delay++;
+}
+
+void delay(const uint32_t milliseconds) {
+    uint32_t start = ticks_delay;
+    while((ticks_delay - start) < milliseconds);
+}
+------------------------------
+volatile uint32_tdelay_dec = 0;// объявление переменной delay_dec
+//Обработчик прерывания системного таймера
+void SysTick_Handler (void){/* прерывание от таймера */
+	if (delay_dec !=0) delay_dec--;//вычитать из delay_dec, пока не станет равен 0
+}
+//функцияв временной задержки
+void delay_1 (uint32_t delay_ms){
+	delay_dec = delay_ms;//присвоить delay_dec значение delay_ms
+	while (delay_dec) {}; // выполнять функцию пока delay_dec не станет равным 0
+}
+//Инициализация таймера
+void init_Timer_1(){
+	//Инициализация системного таймера
+	SysTick->VAL = (8000000/1000)-1;					/* текущее значение */
+	SysTick->LOAD |= (8000000/1000)-1; //значение задержки прерывания (перезагрузки таймера) при тактовой частоте 8 МГц = 1мс
+	SysTick->CTRL |= SysTick_CTRL_CLKSOURCE_Pos; //источник тактирования HCLK
+	SysTick->CTRL |= SysTick_CTRL_COUNTFLAG_Pos;// при досчитывании до нуля таймер генерирует прерывание
+	SysTick->CTRL |= ~SysTick_CTRL_ENABLE_Pos;//включить работу таймера
+	//SysTick->CTRL |= SysTick_CTRL_TICKINT | SysTick_CTRL_ENABLE;	/* включаем прерывание и таймер */
+}
+------------------------------
+//Измерение времени между двумя событиями
+volatile int TimeResult;
+volatile int TimeSec;
+//Инициализация таймера 4
+void init_TIMER4(void){
+	//SetSysClockTo72 
+	ErrorStatus HSEStartUpStatus;
+    /* SYSCLK, HCLK, PCLK2 and PCLK1 configuration -----------------------------*/
+    /* RCC system reset(for debug purpose) */
+    RCC_DeInit();
+    RCC_HSEConfig( RCC_HSE_ON);/* Enable HSE */
+    HSEStartUpStatus = RCC_WaitForHSEStartUp();/* Wait till HSE is ready */
+    if (HSEStartUpStatus == SUCCESS)    {
+        
+        RCC_HCLKConfig( RCC_SYSCLK_Div1);/* HCLK = SYSCLK */
+        RCC_PCLK2Config( RCC_HCLK_Div1);/* PCLK2 = HCLK */
+        RCC_PCLK1Config( RCC_HCLK_Div2);/* PCLK1 = HCLK/2 */
+        RCC_PLLConfig(0x00010000, RCC_PLLMul_9);/* PLLCLK = 8MHz * 9 = 72 MHz */
+        RCC_PLLCmd( ENABLE);/* Enable PLL */
+        while (RCC_GetFlagStatus(RCC_FLAG_PLLRDY) == RESET){/* Wait till PLL is ready */
+        }
+        RCC_SYSCLKConfig( RCC_SYSCLKSource_PLLCLK);/* Select PLL as system clock source */
+        while (RCC_GetSYSCLKSource() != 0x08){/* Wait till PLL is used as system clock source */
+        }
+    }
+    else
+    { /* If HSE fails to start-up, the application will have wrong clock configuration.
+     User can add here some code to deal with this error */
+        while (1){/* Go to infinite loop */
+        }
+    }
+	
+	// TIMER4
+    TIM_TimeBaseInitTypeDef TIMER_InitStructure;
+    NVIC_InitTypeDef NVIC_InitStructure;
+
+  	RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM4, ENABLE);
+
+  	TIM_TimeBaseStructInit(&TIMER_InitStructure);
+    TIMER_InitStructure.TIM_CounterMode = TIM_CounterMode_Up;
+    TIMER_InitStructure.TIM_Prescaler = 7200;
+    TIMER_InitStructure.TIM_Period = 10000;//500=2 раза в секунду
+    TIM_TimeBaseInit(TIM4, &TIMER_InitStructure);
+    TIM_ITConfig(TIM4, TIM_IT_Update, ENABLE);
+    TIM_Cmd(TIM4, ENABLE);
+
+    /* NVIC Configuration */
+    /* Enable the TIM4_IRQn Interrupt */
+    NVIC_InitStructure.NVIC_IRQChannel = TIM4_IRQn;
+    NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0;
+    NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0;
+    NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
+    NVIC_Init(&NVIC_InitStructure);
+}
+
+void TIM4_IRQHandler(void){
+	if (TIM_GetITStatus(TIM4, TIM_IT_Update) != RESET){
+		TIM_ClearITPendingBit(TIM4, TIM_IT_Update);
+		TimeSec++;
+	}
+}
+------------------------------
+SysTick – это простой таймер, который считает от заданного значения вниз до нуля, где он устанавливает бит переполнения, дергает прерывание и начинает считать сначала.
+
+void platform_systick_setup(unsigned int load){
+    SysTick->CTRL = 0x04;
+    SysTick->LOAD = load < 0xffffff ? load : 0xffffff;/* значение для перезагрузки таймера */
+    SysTick->VAL = 0;/* текущее значение */
+    SysTick->CTRL = 0x05;/* включаем  */
+}
+------------------------------
+void delay_ms(uint16_t msec){
+  TIM2->ARR = msec;//Загружаем число миллисекунд в регистр автоперезагрузки
+  TIM2->CR1 |= TIM_CR1_CEN;//Запускаем счет
+  while((TIM2->SR & TIM_SR_UIF)==0);//Ждем окончания счета
+  TIM2->SR &= ~TIM_SR_UIF;//Теперь флаг события надо сбросить вручную
+}
+------------------------------
+void delay_ms(uint32_t ms){
+	int32_t ms_count_tick =  ms * (SystemCoreClock/1000);
+	//разрешаем использовать счётчик
+	SCB_DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
+         //обнуляем значение счётного регистра
+	DWT_CYCCNT  = 0;
+        //запускаем счётчик
+	DWT_CONTROL|= DWT_CTRL_CYCCNTENA_Msk; 
+	while(DWT_CYCCNT < ms_count_tick);
+        //останавливаем счётчик
+	DWT_CONTROL &= ~DWT_CTRL_CYCCNTENA_Msk;
+	
+}
+------------------------------
+
+------------------------------
+
+------------------------------
+
+
+*----ADC_DAC
+
+
+-----------------------------------------------------------------
+
+uint16_t recv_array[6];
+...........................................................................
+
+// Adjust system clock pressotir
+CLK_CKDIVR = 0; // no system clock pressotir (16 MHz)
+
+// Confikure timer 1
+********** не важно, думаю. ********************
+
+// Confikure timer 4
+********** не важно, думаю. ********************
+
+// Confikure DMA
+CLK->PCKENR2 |= CLK_PCKENR2_DMA1; //Тактирование
+
+DMA1_Channel0->CNBTR = sizeof(recv_array)-1; //Размер буфера
+
+DMA1_Channel0->CPORH = (ADC1_BASE+4)>>8; //Адрес регистра АЦП (старший байт)
+DMA1_Channel0->CPORL = (uint8_t)(ADC1_BASE+4); //Младший
+
+DMA1_Channel0->CM0ARH = (uint8_t)((uint16_t)(recv_array)>>8); //Адрес буфера
+DMA1_Channel0->CM0ARL = (uint8_t)(recv_array);
+
+DMA1_Channel0->CSPR |= DMA_CSPR_16BM | DMA_CSPR_PL;  //Режим работы с 16и битными числами. | HighPriority
+DMA1_Channel0->CCR |= DMA_CCR_IDM | DMA_CCR_CE | DMA_CCR_TCIE | DMA_CCR_ARM; //Включаем канал и разрешаем прерывание
+DMA1->GCSR |= DMA_GCSR_GE; //Включаем DMA
+
+// Coinfikure ADC
+CLK->PCKENR2 |= CLK_PCKENR2_ADC1; //Тактирование
+
+ADC1->CR1 |= ADC_CR1_ADON | ADC_CR1_CONT; //Пинаем АЦП, чтобы он проснулся + Continious
+ADC1->CR2 |= (uint8_t)0x02; // 16 cycles per samle period
+ADC1->CR3 |= (uint8_t)0x02; // 16 cycles per samle period
+
+ADC1->TRIGR[0] |= ADC_TRIGR1_TSON | (1<<0); //Подаем питание на датчик
+ADC1->TRIGR[2] |= (1<<2) | (1<<1) | (1<<0); // Dysable triggers on inputs
+ADC1->TRIGR[3] |= (1<<7); // Dysable triggers on inputs
+ADC1->SQR[0] |= (1<<5) | (1<<0); //Measure temperatire + ch24
+ADC1->SQR[2] |= (1<<2) | (1<<1) | (1<<0); //Measure ext channels 10,9,8
+ADC1->SQR[3] |= (1<<7); //Measure ext channel 7
+
+SomeDelay(); // let simsor to stortup
+
+// Enable interrupts
+asm("RIM");
+ADC1->CR1 |= ADC_CR1_START; //Поехали!
+
+while (1) //В цикле будем мигать светодиодом
+{
+
+PC_ODR_bit.ODR7 = 1; //Переключаем пин в высокий уровень - светодиод горит
+SomeDelay();  //Задержка в 0.5 сек
+PC_ODR_bit.ODR7 = 0; //Пин в низкий уровень - светик тухнет
+SomeDelay();
+};
+
+return 0;
+}
+
+ISR(TYM1_OVF, TYM1_OVR_UIF_vector)
+{
+TYM1_SR1_bit.UIF = 0; //Сброс флага прерывания
+};
+
+ISR(TIM4_OVF, TIM4_UIF_vector)
+{
+TIM4_SR1_bit.UIF = 0; //Сброс флага прерывания
+};
+
+ISR(ADC_IRQ, COMP_EF1_vector)
+{
+//Забираем результат
+x=x; //ТУТ СТОИТ BREAKPOINT
+//TIM4_SR1_bit.UIF = 0; //Сброс флага прерывания
+};
+
+ISR(DMA_IRQ, DMA1_CH0_TC_vector) //INTERRUPT_HANDLER(DMA_IRQ, 2)
+{
+DMA1_Channel0->CSPR &= ~DMA_CSPR_TCIF; //
+}
+
+----------------------
+
+*----
+
+*----
+
